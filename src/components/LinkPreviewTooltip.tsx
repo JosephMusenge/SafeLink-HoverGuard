@@ -1,28 +1,72 @@
 import { Copy, X, AlertTriangle, CheckCircle } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface LinkPreviewTooltipProps {
-  title: string;
-  targetDomain: string;
-  finalUrl: string;
-  httpStatus: number;
-  signals: string[];
-  isSuspicious: boolean;
+  url: string;
+  onClose: () => void;
+  style?: React.CSSProperties;
+  // title: string;
+  // targetDomain: string;
+  // finalUrl: string;
+  // httpStatus: number;
+  // signals: string[];
+  // isSuspicious: boolean;
 }
 
-export default function LinkPreviewTooltip({
-  title,
-  targetDomain,
-  finalUrl,
-  httpStatus,
-  signals,
-  isSuspicious
-}: LinkPreviewTooltipProps) {
+export default function LinkPreviewTooltip({ url, onClose }: LinkPreviewTooltipProps) {
+  const [previewData, setPreviewData] = useState<{
+    title?: string;
+    targetDomain?: string;
+    finalUrl?: string;
+    httpStatus?: number;
+    signals?: string[];
+    isSuspicious?: boolean;
+    loading?: boolean;
+    error?: string;
+  }>({ loading: true });
+
+  useEffect(() => {
+    const fetchLinkData = async () => {
+      try {
+        // Simulate API call (replace with real API like Google Safe Browsing)
+        const response = await fetch(`https://api.example.com/check?url=${encodeURIComponent(url)}`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        if (!response.ok) throw new Error('Failed to fetch link data');
+        const data = await response.json();
+
+        setPreviewData({
+          title: '🔎 Link Preview',
+          targetDomain: new URL(url).hostname,
+          finalUrl: url,
+          httpStatus: data.httpStatus || 200,
+          signals: data.signals || ['HTTPS enabled'],
+          isSuspicious: data.isSuspicious || false,
+          loading: false,
+        });
+      } catch (err) {
+        setPreviewData({
+          title: '🔎 Link Preview',
+          targetDomain: new URL(url).hostname,
+          finalUrl: url,
+          httpStatus: 0,
+          signals: ['Error fetching data'],
+          isSuspicious: true,
+          loading: false,
+          error: err instanceof Error ? err.message : 'An unknown error occurred', // explicit check for Error type
+        });
+      }
+    };
+
+    fetchLinkData();
+  }, [url]);
+
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(finalUrl);
+      await navigator.clipboard.writeText(previewData.finalUrl || url);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -30,18 +74,21 @@ export default function LinkPreviewTooltip({
     }
   };
 
-  const handleClose = () => {
-    const tooltip = document.activeElement?.closest('[role="tooltip"]') as HTMLElement;
-    if (tooltip) {
-      tooltip.style.display = 'none';
-    }
-  };
+  // const handleClose = () => {
+  //   const tooltip = document.activeElement?.closest('[role="tooltip"]') as HTMLElement;
+  //   if (tooltip) {
+  //     tooltip.style.display = 'none';
+  //   }
+  // };
 
   const getStatusColor = (status: number) => {
+    if (status === undefined || status === 0) return 'text-red-400';
     if (status >= 200 && status < 300) return 'text-green-400';
     if (status >= 300 && status < 400) return 'text-yellow-400';
     return 'text-red-400';
   };
+
+  if (!previewData.loading && !previewData.targetDomain) return null;
 
   return (
     <div
@@ -50,7 +97,8 @@ export default function LinkPreviewTooltip({
         hidden fixed z-[9999] w-80
         bg-gray-900 rounded-lg shadow-2xl
         border-2 transition-all
-        ${isSuspicious ? 'border-orange-500' : 'border-gray-700'}
+        ${previewData.isSuspicious ? 'border-orange-500' : 'border-gray-700'}
+        ${previewData.loading ? 'opacity-70' : 'opacity-100'}
       `}
       style={{
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
@@ -59,13 +107,16 @@ export default function LinkPreviewTooltip({
       <div className="p-4 space-y-3">
         <div className="flex items-start justify-between">
           <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-            {title}
-            {isSuspicious ? (
+            {previewData.title}
+            {previewData.isSuspicious ? (
               <AlertTriangle className="w-4 h-4 text-orange-500" />
             ) : (
               <CheckCircle className="w-4 h-4 text-green-500" />
             )}
           </h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-white">
+            <X className="w-4 h-4" />
+          </button>
         </div>
 
         <div className="space-y-2">
@@ -74,7 +125,7 @@ export default function LinkPreviewTooltip({
               Target Domain
             </label>
             <p className="text-sm text-white font-mono mt-1 break-all">
-              {targetDomain}
+              {previewData.targetDomain}
             </p>
           </div>
 
@@ -83,7 +134,7 @@ export default function LinkPreviewTooltip({
               Final URL
             </label>
             <p className="text-xs text-gray-300 font-mono mt-1 break-all bg-gray-800 p-2 rounded">
-              {finalUrl}
+              {previewData.finalUrl || 'loading...'}
             </p>
           </div>
 
@@ -91,8 +142,8 @@ export default function LinkPreviewTooltip({
             <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">
               HTTP Status
             </label>
-            <p className={`text-sm font-semibold mt-1 ${getStatusColor(httpStatus)}`}>
-              {httpStatus}
+            <p className={`text-sm font-semibold mt-1 ${getStatusColor(previewData.httpStatus ?? 0)}`}>
+              {previewData.httpStatus !== undefined ? previewData.httpStatus : 'loading...'}
             </p>
           </div>
 
@@ -101,15 +152,15 @@ export default function LinkPreviewTooltip({
               Signals
             </label>
             <ul className="space-y-1">
-              {signals.map((signal, index) => (
+              {(previewData.signals || ['loading...']).map((signal, index) => (
                 <li
                   key={index}
                   className={`text-xs flex items-center gap-2 ${
-                    isSuspicious ? 'text-orange-300' : 'text-gray-300'
+                    previewData.isSuspicious ? 'text-orange-300' : 'text-gray-300'
                   }`}
                 >
                   <span className={`w-1.5 h-1.5 rounded-full ${
-                    isSuspicious ? 'bg-orange-500' : 'bg-green-500'
+                    previewData.isSuspicious ? 'bg-orange-500' : 'bg-green-500'
                   }`} />
                   {signal}
                 </li>
@@ -129,7 +180,7 @@ export default function LinkPreviewTooltip({
           {copied ? 'Copied!' : 'Copy URL'}
         </button>
         <button
-          onClick={handleClose}
+          onClick={onClose}
           className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded transition-colors"
           aria-label="Close tooltip"
         >
