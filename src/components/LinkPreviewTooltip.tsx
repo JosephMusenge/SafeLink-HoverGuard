@@ -5,12 +5,6 @@ interface LinkPreviewTooltipProps {
   url: string;
   onClose: () => void;
   style?: React.CSSProperties;
-  // title: string;
-  // targetDomain: string;
-  // finalUrl: string;
-  // httpStatus: number;
-  // signals: string[];
-  // isSuspicious: boolean;
 }
 
 export default function LinkPreviewTooltip({ url, onClose }: LinkPreviewTooltipProps) {
@@ -28,38 +22,110 @@ export default function LinkPreviewTooltip({ url, onClose }: LinkPreviewTooltipP
   useEffect(() => {
     const fetchLinkData = async () => {
       try {
-        // Simulate API call (replace with real API like Google Safe Browsing)
-        const response = await fetch(`https://api.example.com/check?url=${encodeURIComponent(url)}`, {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
+        const targetDomain = new URL(url).hostname;
+        const apiKey = process.env.GOOGLE_SAFE_BROWSING_API_KEY;
+        const clientId = 'safelink_project_key1';
+        
+        // Step 1: Basic HTTP status check (optional, via HEAD request)
+        let httpStatus = 0;
+        try {
+          const headResponse = await fetch(url, { method: 'HEAD' });
+          httpStatus = headResponse.status;
+        } catch (headErr) {
+          console.warn('HEAD request failed (CORS may block this):', headErr);
+          httpStatus = 0; // Fallback
+        }
+
+        // Step 2: Google Safe Browsing API call
+        const threatLists = [
+          'PHISH_LIST',      // Phishing sites
+          'MALWARE_LIST',    // Malware sites
+          'SOCIAL_ENGINEERING_LIST', // Social engineering
+          'HARMFUL_APPS_LIST'        // Harmful apps
+        ];
+
+        const requestBody = {
+          client: {
+            clientId: clientId,
+            clientVersion: '1.0.0' // Your extension version
+          },
+          threatInfo: {
+            threatTypes: threatLists,
+            platformTypes: ['ANY_PLATFORM'],
+            threatEntryTypes: ['URL'],
+            threatEntries: [
+              { url: url }
+            ]
+          }
+        };
+
+        const response = await fetch(`https://safebrowsing.googleapis.com/v4/threatMatches:find?key=${apiKey}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestBody),
         });
-        if (!response.ok) throw new Error('Failed to fetch link data');
+
+        if (!response.ok) {
+          throw new Error(`API error: ${response.status} ${response.statusText}`);
+        }
+
         const data = await response.json();
+        const isSuspicious = data.matches && data.matches.length > 0;
+        const signals: string[] = [];
+
+        // Build signals based on API response and HTTP status
+        if (httpStatus >= 200 && httpStatus < 300) {
+          signals.push('Valid HTTP response');
+        } else if (httpStatus >= 300 && httpStatus < 400) {
+          signals.push('Redirect detected');
+        } else {
+          signals.push('HTTP error or unreachable');
+        }
+
+        if (url.startsWith('https://')) {
+          signals.push('HTTPS enabled');
+        } else {
+          signals.push('HTTP (insecure)');
+        }
+
+        if (isSuspicious) {
+          signals.push('Threat detected by Google Safe Browsing');
+          data.matches.forEach((match: any) => {
+            signals.push(`- ${match.threatType} on ${match.threat.platformType}`);
+          });
+        } else {
+          signals.push('No known threats');
+        }
 
         setPreviewData({
           title: '🔎 Link Preview',
-          targetDomain: new URL(url).hostname,
+          targetDomain,
           finalUrl: url,
-          httpStatus: data.httpStatus || 200,
-          signals: data.signals || ['HTTPS enabled'],
-          isSuspicious: data.isSuspicious || false,
+          httpStatus,
+          signals,
+          isSuspicious,
           loading: false,
         });
       } catch (err) {
+        console.error('Safe Browsing API error:', err);
         setPreviewData({
           title: '🔎 Link Preview',
           targetDomain: new URL(url).hostname,
           finalUrl: url,
           httpStatus: 0,
-          signals: ['Error fetching data'],
-          isSuspicious: true,
+          signals: ['Error: Unable to check (network/API issue)'],
+          isSuspicious: true, // Treat errors conservatively
           loading: false,
-          error: err instanceof Error ? err.message : 'An unknown error occurred', // explicit check for Error type
+          error: err instanceof Error ? err.message : 'An unknown error occurred',
         });
       }
     };
 
-    fetchLinkData();
+    if (url) {
+      fetchLinkData();
+    }
   }, [url]);
 
   const [copied, setCopied] = useState(false);
