@@ -1,0 +1,34 @@
+{
+    "manifest_version": 3,
+    "name": "SafeLink HoverGuard",
+    "version": "1.0",
+    "description": "Preview link details on hover to detect phishing and threats using Google Safe Browsing.",
+    "permissions": [
+      "activeTab",
+      "scripting",
+      "https://safebrowsing.googleapis.com/*"
+    ],
+    "action": {
+      "default_popup": "index.html"
+    },
+    "content_scripts": [
+      {
+        "matches": ["<all_urls>"],
+        "js": ["content.js"],
+        "run_at": "document_end"
+      }
+    ],
+    "web_accessible_resources": [
+      {
+        "resources": [
+          "index.html",
+          "assets/*.js",
+          "assets/*.js"
+        ],
+        "matches": ["<all_urls>"]
+      }
+    ],
+    "background": {
+      "service_worker": "background.js"
+    }
+  }
