@@ -16,9 +16,14 @@ export default defineConfig({
         tooltip: 'src/tooltip.ts'
       },
       output: {
-        entryFileNames: '[name].js',
-        chunkFileNames: '[name].js',
-        assetFileNames: '[name].[ext]'
+        entryFileNames: (chunkInfo) => {
+          if (chunkInfo.name === 'content' || chunkInfo.name === 'tooltip') {
+            return 'static/js/[name].js';
+          }
+          return '[name].js'; // For main and background
+        },
+        chunkFileNames: 'static/js/[name]-[hash].js',
+        assetFileNames: 'static/css/[name]-[hash].[ext]',
       }
     }
   }
