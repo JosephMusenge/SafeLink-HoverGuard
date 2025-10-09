@@ -5,9 +5,12 @@
     "description": "Preview link details on hover to detect phishing and threats using Google Safe Browsing.",
     "permissions": [
       "activeTab",
-      "scripting",
-      "https://safebrowsing.googleapis.com/*"
+      "scripting"
     ],
+    "host_permissions": [
+        "https://safebrowsing.googleapis.com/*",
+        "<all_urls>"  
+      ],
     "action": {
       "default_popup": "index.html"
     },
