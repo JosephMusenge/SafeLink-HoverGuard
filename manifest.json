@@ -17,7 +17,7 @@
     "content_scripts": [
       {
         "matches": ["<all_urls>"],
-        "js": ["content.js"],
+        "js": ["static/js/tooltip.js"],
         "run_at": "document_end"
       }
     ],
@@ -25,8 +25,8 @@
       {
         "resources": [
           "index.html",
-          "assets/*.js",
-          "assets/*.js"
+          "static/js/*.js",
+          "static/css/*.css"
         ],
         "matches": ["<all_urls>"]
       }
