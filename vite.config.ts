@@ -12,7 +12,8 @@ export default defineConfig({
       input: {
         main: 'index.html',
         content: 'src/content.js',
-        background: 'background.js'
+        background: 'background.js',
+        tooltip: 'src/tooltip.ts'
       },
       output: {
         entryFileNames: '[name].js',
