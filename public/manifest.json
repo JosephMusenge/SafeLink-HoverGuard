@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "SafeLink HoverGuard",
+  "version": "1.0",
+  "permissions": ["activeTab", "scripting"],
+  "host_permissions": ["<all_urls>"],
+  "action": { "default_popup": "index.html" },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module" 
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"], 
+      "run_at": "document_end"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["content.js", "content.css"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
