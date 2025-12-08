@@ -1,58 +1,99 @@
 import ReactDOM from 'react-dom/client';
-import LinkPreviewTooltip from './components/LinkPreviewTooltip'; 
+import LinkPreviewTooltip from './components/LinkPreviewTooltip'; // Ensure path is correct
+// Import your CSS so Vite includes it in the bundle
+import cssStyles from './index.css?inline'; 
+
+console.log('SafeLink: Content script loaded and running!');
 
 const rootId = 'link-defender-root';
-let rootElement = document.getElementById(rootId);
 
-if (!rootElement) {
-  rootElement = document.createElement('div');
-  rootElement.id = rootId;
-  document.body.appendChild(rootElement);
+// Setup the Container
+function getOrCreateRoot() {
+  let rootElement = document.getElementById(rootId);
+  if (!rootElement) {
+    rootElement = document.createElement('div');
+    rootElement.id = rootId;
+    // Make sure the container itself doesn't block clicks when hidden
+    rootElement.style.position = 'absolute';
+    rootElement.style.top = '0';
+    rootElement.style.left = '0';
+    rootElement.style.zIndex = '2147483647'; // Max z-index
+    rootElement.style.pointerEvents = 'none'; // Let clicks pass through
+    document.body.appendChild(rootElement);
+  }
+  return rootElement;
 }
 
-// Create shadow DOM to protect styles
-const shadow = rootElement.shadowRoot || rootElement.attachShadow({ mode: 'open' });
-// Create a mounting point inside shadow DOM
+const host = getOrCreateRoot();
+// Setup Shadow DOM (Styles must be injected here to work!)
+const shadow = host.shadowRoot || host.attachShadow({ mode: 'open' });
+// check if we already added styles to avoid duplicates
+if (!shadow.querySelector('style')) {
+  const style = document.createElement('style');
+  // This puts the Tailwind CSS directly inside the shadow root
+  style.textContent = cssStyles; 
+  shadow.appendChild(style);
+}
+
 const mountPoint = document.createElement('div');
-// Ensure we don't duplicate mount points
+mountPoint.style.pointerEvents = 'auto'; 
+mountPoint.style.display = 'block';
+
 if (!shadow.contains(mountPoint)) {
-    shadow.appendChild(mountPoint);
+  shadow.appendChild(mountPoint);
 }
 
 const reactRoot = ReactDOM.createRoot(mountPoint);
-
+// Event Listeners
 let currentTarget: HTMLAnchorElement | null = null;
 
-// Handle Hover
 document.addEventListener('mouseover', (e) => {
   const target = e.target as HTMLElement;
   const link = target.closest('a');
 
-  if (link && link.href && link !== currentTarget) {
-    currentTarget = link;
-    
-    // send message to background
-    chrome.runtime.sendMessage(
-      { type: 'CHECK_LINK', url: link.href },
-      (response) => {
-        // Render your specific Tooltip component
-        reactRoot.render(
-          <LinkPreviewTooltip 
-            visible={true} 
-            data={response} 
-            position={{ x: e.pageX, y: e.pageY }} 
-          />
-        );
-      }
-    );
+  if (link && link.href) {
+    // Ignore internal links or empty links
+    if (link.href.startsWith('#') || link.href.startsWith('javascript')) return;
+
+    if (link !== currentTarget) {
+      currentTarget = link;
+      console.log('SafeLink: Hover detected on:', link.href);
+
+      // Send message to background
+      chrome.runtime.sendMessage(
+        { type: 'CHECK_LINK', url: link.href },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            console.error('SafeLink: Message Error:', chrome.runtime.lastError);
+            return;
+          }
+
+          console.log('SafeLink: Data received:', response);
+          
+          // Render Tooltip
+          reactRoot.render(
+            <LinkPreviewTooltip 
+              visible={true} 
+              data={response} 
+              position={{ x: e.pageX, y: e.pageY }} 
+            />
+          );
+        }
+      );
+    }
   }
 });
 
-// Handle Mouse Leave
 document.addEventListener('mouseout', (e) => {
-     // Add a small delay check here if needed later
-     reactRoot.render(
-        <LinkPreviewTooltip visible={false} data={null} position={{x:0, y:0}} />
-     );
-     currentTarget = null;
+    // Only clear if we actually left the link
+    const target = e.target as HTMLElement;
+    const link = target.closest('a');
+    
+    // If we moved to a child element of the same link, don't hide
+    if (link && link === currentTarget) return;
+
+    currentTarget = null;
+    reactRoot.render(
+       <LinkPreviewTooltip visible={false} data={null} position={{x:0, y:0}} />
+    );
 });
