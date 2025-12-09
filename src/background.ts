@@ -8,6 +8,32 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
+// helper func to determine if a redirect is actually risky
+function isSuspiciousRedirect(original: string, final: string): boolean {
+  try {
+    const u1 = new URL(original);
+    const u2 = new URL(final);
+
+    if (u1.hostname !== u2.hostname) {
+        // Exception: www vs non-www on same domain is usually fine
+        const h1 = u1.hostname.replace(/^www\./, '');
+        const h2 = u2.hostname.replace(/^www\./, '');
+        if (h1 !== h2) return true; 
+    }
+    // Normalize paths by stripping trailing slash
+    const path1 = u1.pathname.replace(/\/$/, '');
+    const path2 = u2.pathname.replace(/\/$/, '');
+
+    // If path is effectively the same, it's SAFE
+    if (path1 === path2) return false;
+
+    return false; 
+
+  } catch (e) {
+    return true; // If we can't parse URLs, assume suspicious
+  }
+}
+
 async function handleLinkCheck(url: string) {
   try {
     const domain = new URL(url).hostname;
@@ -35,7 +61,10 @@ async function handleLinkCheck(url: string) {
     
     const riskSignals: string[] = [];
     if (!isHttps) riskSignals.push('Not Secure (HTTP only)');
-    if (finalUrl !== url) riskSignals.push('Redirected from original link');
+
+    if (finalUrl !== url && isSuspiciousRedirect(url, finalUrl)) {
+        riskSignals.push('Redirected from original link');
+    }
 
     // Google Safe Browsing Check
     const isSafe = await checkSafeBrowsing(finalUrl);
