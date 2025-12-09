@@ -136,7 +136,7 @@ document.addEventListener('mouseover', (e) => {
     currentHoveredLink = link;
     // immediately show if shift is held down
     if (e.shiftKey) {
-      fetchAndShowTooltip(link, e.pageX, e.pageY);
+      fetchAndShowTooltip(link, e.clientX, e.clientY);
     }
   }
 });
