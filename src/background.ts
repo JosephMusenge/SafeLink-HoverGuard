@@ -8,6 +8,25 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
+// call python server
+async function checkLocalML(url: string) {
+  try {
+    // send the URL to our flask server
+    const response = await fetch('http://localhost:5000/predict', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: url })
+    });
+    
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (e) {
+    // if the Python server isn't running, just silently fail (don't break the extension)
+    console.log('ML Server offline');
+    return null;
+  }
+}
+
 // helper func to determine if a redirect is actually risky
 function isSuspiciousRedirect(original: string, final: string): boolean {
   try {
@@ -35,16 +54,30 @@ function isSuspiciousRedirect(original: string, final: string): boolean {
 }
 
 async function handleLinkCheck(url: string) {
+  // kill switch timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 4000);
+
   try {
     const domain = new URL(url).hostname;
-    
-    // Perform HEAD request to check for redirects and status
-    let response;
+    let finalUrl = url;
+    let status = 0;
+    let isHttps = url.startsWith('https://');
+    let riskSignals: string[] = [];
+
     try {
-        response = await fetch(url, { method: 'HEAD', redirect: 'follow' });
-    } catch (e) {
+        const response = await fetch(url, { method: 'HEAD', redirect: 'follow', signal: controller.signal });
+        clearTimeout(timeoutId);
+
+        finalUrl = response.url;
+        status = response.status;
+        isHttps = finalUrl.startsWith('https://');
+        
+    } catch (e: any) {
+        clearTimeout(timeoutId);
         // If HEAD fails, we return a basic error state but still return data
-        return {
+        if (e.name === 'AbortError') {
+          return {
             loading: false,
             safe: false,
             domain: domain,
@@ -52,18 +85,35 @@ async function handleLinkCheck(url: string) {
             finalUrl: url,
             status: 0,
             riskSignals: ['Could not reach site (Network Error)']
-        };
+          };
+        }
+
+        // handle other network errors
+        return {
+          loading: false,
+          safe: false,
+          domain: domain,
+          originalUrl: url,
+          finalUrl: url,
+          status: 0,
+          riskSignals: ['Could not reach site (Network Error)']
+      };
     }
 
-    const finalUrl = response.url;
-    const status = response.status;
-    const isHttps = finalUrl.startsWith('https://');
-    
-    const riskSignals: string[] = [];
     if (!isHttps) riskSignals.push('Not Secure (HTTP only)');
 
     if (finalUrl !== url && isSuspiciousRedirect(url, finalUrl)) {
         riskSignals.push('Redirected from original link');
+    }
+
+    // AI analysis check - check the FINAL url
+    const mlResult = await checkLocalML(finalUrl);
+    
+    if (mlResult && mlResult.is_phishing) {
+        // only warn if confidence is high (> 60%)
+        if (mlResult.confidence_score > 60) {
+            riskSignals.push(`AI Flagged: ${mlResult.confidence_score.toFixed(0)}% Phishing Confidence`);
+        }
     }
 
     // Google Safe Browsing Check
