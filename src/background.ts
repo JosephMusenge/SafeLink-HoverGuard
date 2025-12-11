@@ -11,8 +11,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 // call python server
 async function checkLocalML(url: string) {
   try {
+    console.log("Attempting to contact Python Server...");
     // send the URL to our flask server
-    const response = await fetch('http://localhost:5000/predict', {
+    const response = await fetch('http://localhost:5001/predict', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url: url })
