@@ -59,11 +59,11 @@ async function handleLinkCheck(url: string) {
   const timeoutId = setTimeout(() => controller.abort(), 4000);
 
   try {
-    const domain = new URL(url).hostname;
     let finalUrl = url;
     let status = 0;
     let isHttps = url.startsWith('https://');
     let riskSignals: string[] = [];
+    let networkFailed = false;
 
     try {
         const response = await fetch(url, { method: 'HEAD', redirect: 'follow', signal: controller.signal });
@@ -75,35 +75,21 @@ async function handleLinkCheck(url: string) {
         
     } catch (e: any) {
         clearTimeout(timeoutId);
+        networkFailed = true;
         // If HEAD fails, we return a basic error state but still return data
         if (e.name === 'AbortError') {
-          return {
-            loading: false,
-            safe: false,
-            domain: domain,
-            originalUrl: url,
-            finalUrl: url,
-            status: 0,
-            riskSignals: ['Could not reach site (Network Error)']
-          };
+          riskSignals.push('Site took too long to respond (Suspicious)');
+        } else {
+          // other network errors
+          riskSignals.push('Could not reach site (Network Error)');
         }
-
-        // handle other network errors
-        return {
-          loading: false,
-          safe: false,
-          domain: domain,
-          originalUrl: url,
-          finalUrl: url,
-          status: 0,
-          riskSignals: ['Could not reach site (Network Error)']
-      };
     }
 
-    if (!isHttps) riskSignals.push('Not Secure (HTTP only)');
+    // run security checks even if network failed
+    if (!networkFailed && !isHttps) riskSignals.push('Not Secure (HTTP only)');
 
-    if (finalUrl !== url && isSuspiciousRedirect(url, finalUrl)) {
-        riskSignals.push('Redirected from original link');
+    if (!networkFailed && finalUrl !== url && isSuspiciousRedirect(url, finalUrl)) {
+      riskSignals.push('Redirected from original link');
     }
 
     // AI analysis check - check the FINAL url
