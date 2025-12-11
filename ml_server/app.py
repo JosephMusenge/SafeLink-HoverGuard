@@ -6,7 +6,7 @@ import numpy as np
 
 app = Flask(__name__)
 
-CORS(app) 
+CORS(app, resources={r"/*": {"origins": "*"}}) 
 
 # Load the trained model
 model = joblib.load('phishing_model.pkl')

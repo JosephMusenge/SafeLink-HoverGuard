@@ -1,4 +1,4 @@
-import { Copy, CheckCircle, ShieldAlert, Loader, Globe, ArrowRight } from 'lucide-react';
+import { Copy, CheckCircle, ShieldAlert, Loader, Globe, ArrowRight, ExternalLink } from 'lucide-react';
 import { useState } from 'react';
 
 // This interface matches the data coming from background.ts
@@ -32,6 +32,12 @@ export default function LinkPreviewTooltip({ visible, data, position }: LinkPrev
   const hasSpaceBelow = position.y + TOOLTIP_HEIGHT < viewportHeight;
   const topPosition = hasSpaceBelow ? position.y + 24 : 'auto';
   const bottomPosition = hasSpaceBelow ? 'auto' : (viewportHeight - position.y) + 24;
+
+  const handleOpenReport = () => {
+    // Open the local website (or deployed URL) with the suspicious link as a parameter
+    const reportUrl = `http://localhost:3000/report?url=${encodeURIComponent(data.finalUrl || data.originalUrl)}`;
+    window.open(reportUrl, '_blank');
+  };
 
   return (
     <div
@@ -122,6 +128,13 @@ export default function LinkPreviewTooltip({ visible, data, position }: LinkPrev
         <Copy className="w-3 h-3" />
         {copied ? 'Copied to clipboard' : 'Click to copy full URL'}
       </div>
+
+      {/* NEW: Report Button */}
+        <div onClick={handleOpenReport}
+        className="flex-1 px-4 py-2 cursor-pointer transition-colors flex items-center justify-center gap-2 text-xs text-blue-400 hover:text-blue-300 hover:bg-blue-900/20">
+          <ExternalLink className="w-3 h-3" />
+          Full Report
+        </div>
     </div>
   );
 }
