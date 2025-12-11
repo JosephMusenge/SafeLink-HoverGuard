@@ -8,34 +8,100 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
-async function handleLinkCheck(url: string) {
+// call python server
+async function checkLocalML(url: string) {
   try {
-    const domain = new URL(url).hostname;
+    console.log("Attempting to contact Python Server...");
+    // send the URL to our flask server
+    const response = await fetch('http://localhost:5001/predict', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: url })
+    });
     
-    // Perform HEAD request to check for redirects and status
-    let response;
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (e) {
+    // if the Python server isn't running, just silently fail (don't break the extension)
+    console.log('ML Server offline');
+    return null;
+  }
+}
+
+// helper func to determine if a redirect is actually risky
+function isSuspiciousRedirect(original: string, final: string): boolean {
+  try {
+    const u1 = new URL(original);
+    const u2 = new URL(final);
+
+    if (u1.hostname !== u2.hostname) {
+        // Exception: www vs non-www on same domain is usually fine
+        const h1 = u1.hostname.replace(/^www\./, '');
+        const h2 = u2.hostname.replace(/^www\./, '');
+        if (h1 !== h2) return true; 
+    }
+    // Normalize paths by stripping trailing slash
+    const path1 = u1.pathname.replace(/\/$/, '');
+    const path2 = u2.pathname.replace(/\/$/, '');
+
+    // If path is effectively the same, it's SAFE
+    if (path1 === path2) return false;
+
+    return false; 
+
+  } catch (e) {
+    return true; // If we can't parse URLs, assume suspicious
+  }
+}
+
+async function handleLinkCheck(url: string) {
+  // kill switch timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+  try {
+    let finalUrl = url;
+    let status = 0;
+    let isHttps = url.startsWith('https://');
+    let riskSignals: string[] = [];
+    let networkFailed = false;
+
     try {
-        response = await fetch(url, { method: 'HEAD', redirect: 'follow' });
-    } catch (e) {
+        const response = await fetch(url, { method: 'HEAD', redirect: 'follow', signal: controller.signal });
+        clearTimeout(timeoutId);
+
+        finalUrl = response.url;
+        status = response.status;
+        isHttps = finalUrl.startsWith('https://');
+        
+    } catch (e: any) {
+        clearTimeout(timeoutId);
+        networkFailed = true;
         // If HEAD fails, we return a basic error state but still return data
-        return {
-            loading: false,
-            safe: false,
-            domain: domain,
-            originalUrl: url,
-            finalUrl: url,
-            status: 0,
-            riskSignals: ['Could not reach site (Network Error)']
-        };
+        if (e.name === 'AbortError') {
+          riskSignals.push('Site took too long to respond (Suspicious)');
+        } else {
+          // other network errors
+          riskSignals.push('Could not reach site (Network Error)');
+        }
     }
 
-    const finalUrl = response.url;
-    const status = response.status;
-    const isHttps = finalUrl.startsWith('https://');
+    // run security checks even if network failed
+    if (!networkFailed && !isHttps) riskSignals.push('Not Secure (HTTP only)');
+
+    if (!networkFailed && finalUrl !== url && isSuspiciousRedirect(url, finalUrl)) {
+      riskSignals.push('Redirected from original link');
+    }
+
+    // AI analysis check - check the FINAL url
+    const mlResult = await checkLocalML(finalUrl);
     
-    const riskSignals: string[] = [];
-    if (!isHttps) riskSignals.push('Not Secure (HTTP only)');
-    if (finalUrl !== url) riskSignals.push('Redirected from original link');
+    if (mlResult && mlResult.is_phishing) {
+        // only warn if confidence is high (> 60%)
+        if (mlResult.confidence_score > 60) {
+            riskSignals.push(`AI Flagged: ${mlResult.confidence_score.toFixed(0)}% Phishing Confidence`);
+        }
+    }
 
     // Google Safe Browsing Check
     const isSafe = await checkSafeBrowsing(finalUrl);

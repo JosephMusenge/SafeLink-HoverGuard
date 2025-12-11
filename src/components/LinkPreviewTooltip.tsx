@@ -26,12 +26,19 @@ export default function LinkPreviewTooltip({ visible, data, position }: LinkPrev
   if (!visible || !data) return null;
 
   const isDangerous = !data.safe || data.riskSignals.length > 0 || (data.status >= 400);
-  // Clean dark card, colored icons
+  const TOOLTIP_HEIGHT = 300; // Approx max height of card
+  const viewportHeight = window.innerHeight;
+  
+  const hasSpaceBelow = position.y + TOOLTIP_HEIGHT < viewportHeight;
+  const topPosition = hasSpaceBelow ? position.y + 24 : 'auto';
+  const bottomPosition = hasSpaceBelow ? 'auto' : (viewportHeight - position.y) + 24;
+
   return (
     <div
       className="fixed z-[2147483647] bg-[#1f2937] text-white rounded-lg shadow-2xl border border-gray-700 overflow-hidden font-sans"
       style={{
-        top: position.y + 24, // Slight gap from cursor
+        top: topPosition,
+        bottom: bottomPosition,
         left: position.x,
         width: '320px',
         fontSize: '14px',

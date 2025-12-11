@@ -45,41 +45,98 @@ if (!shadow.contains(mountPoint)) {
 
 const reactRoot = ReactDOM.createRoot(mountPoint);
 // Event Listeners
-let currentTarget: HTMLAnchorElement | null = null;
+let currentHoveredLink: HTMLAnchorElement | null = null;
+let lastMousePos = { x: 0, y: 0 };
+let isTooltipVisible = false;
 
+const hideTooltip = () => {
+  if (!isTooltipVisible) return;
+  isTooltipVisible = false;
+  reactRoot.render(
+     <LinkPreviewTooltip visible={false} data={null} position={{x:0, y:0}} />
+  );
+};
+
+const fetchAndShowTooltip = (link: HTMLAnchorElement, x: number, y: number) => {
+  // Prevent duplicate requests if already showing
+  if (isTooltipVisible) return; 
+  
+  console.log('SafeLink: Analyzing...', link.href);
+  isTooltipVisible = true;
+
+  // Render Loading State Immediately
+  reactRoot.render(
+    <LinkPreviewTooltip 
+      visible={true} 
+      data={{
+        loading: true,
+        safe: true,
+        originalUrl: link.href,
+        finalUrl: link.href,
+        domain: new URL(link.href).hostname,
+        status: 0,
+        riskSignals: []
+      }} 
+      position={{ x, y }} 
+    />
+  );
+
+  // Fetch Data
+  chrome.runtime.sendMessage(
+    { type: 'CHECK_LINK', url: link.href },
+    (response) => {
+      // If the user moved away or let go of shift while fetching, don't render
+      if (!currentHoveredLink || currentHoveredLink !== link) return;
+
+      if (chrome.runtime.lastError) {
+        console.error('SafeLink: Message Error:', chrome.runtime.lastError);
+        return;
+      }
+      
+      // Render Actual Result
+      reactRoot.render(
+        <LinkPreviewTooltip 
+          visible={true} 
+          data={response} 
+          position={{ x, y }} 
+        />
+      );
+    }
+  );
+};
+
+// event listeners
+// track mouse position 
+document.addEventListener('mousemove', (e) => {
+  lastMousePos = { x: e.pageX, y: e.pageY };
+});
+
+// Handle Key Presses (The "Peek" Trigger)
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Shift' && currentHoveredLink) {
+    fetchAndShowTooltip(currentHoveredLink, lastMousePos.x, lastMousePos.y);
+  }
+});
+
+document.addEventListener('keyup', (e) => {
+  if (e.key === 'Shift') {
+    hideTooltip();
+  }
+});
+
+// handle link hovering
 document.addEventListener('mouseover', (e) => {
   const target = e.target as HTMLElement;
   const link = target.closest('a');
 
   if (link && link.href) {
-    // Ignore internal links or empty links
+    // ignore internal links or empty links
     if (link.href.startsWith('#') || link.href.startsWith('javascript')) return;
 
-    if (link !== currentTarget) {
-      currentTarget = link;
-      console.log('SafeLink: Hover detected on:', link.href);
-
-      // Send message to background
-      chrome.runtime.sendMessage(
-        { type: 'CHECK_LINK', url: link.href },
-        (response) => {
-          if (chrome.runtime.lastError) {
-            console.error('SafeLink: Message Error:', chrome.runtime.lastError);
-            return;
-          }
-
-          console.log('SafeLink: Data received:', response);
-          
-          // Render Tooltip
-          reactRoot.render(
-            <LinkPreviewTooltip 
-              visible={true} 
-              data={response} 
-              position={{ x: e.pageX, y: e.pageY }} 
-            />
-          );
-        }
-      );
+    currentHoveredLink = link;
+    // immediately show if shift is held down
+    if (e.shiftKey) {
+      fetchAndShowTooltip(link, e.clientX, e.clientY);
     }
   }
 });
@@ -88,12 +145,11 @@ document.addEventListener('mouseout', (e) => {
     // Only clear if we actually left the link
     const target = e.target as HTMLElement;
     const link = target.closest('a');
-    
-    // If we moved to a child element of the same link, don't hide
-    if (link && link === currentTarget) return;
+    // ignore if moving into child elem of same link
+    if (link && link === currentHoveredLink && link.contains(e.relatedTarget as Node)) {
+      return;
+    }
 
-    currentTarget = null;
-    reactRoot.render(
-       <LinkPreviewTooltip visible={false} data={null} position={{x:0, y:0}} />
-    );
+    currentHoveredLink = null;
+    hideTooltip();
 });

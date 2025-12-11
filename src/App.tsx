@@ -5,7 +5,7 @@ function App() {
   const [activeTooltip, setActiveTooltip] = useState<{ url: string; x: number; y: number } | null>(null);
   const [previewData, setPreviewData] = useState<LinkSafetyData | null>(null);
 
-  // 1. Detect Hover
+  // Detect Hover
   useEffect(() => {
     const handleMouseOver = (e: MouseEvent) => {
       const target = e.target;
@@ -28,11 +28,8 @@ function App() {
     };
   }, []);
 
-  // Simulate Data Fetching (Demo Mode)
-  // Since this is just the popup/demo app, we simulate the background script's job
   useEffect(() => {
     if (activeTooltip) {
-      // A. Start with loading state
       setPreviewData({
         safe: true,
         originalUrl: activeTooltip.url,
@@ -43,7 +40,6 @@ function App() {
         loading: true
       });
 
-      // B. After 500ms, show "Fake" result for demo purposes
       const timer = setTimeout(() => {
         setPreviewData({
           safe: true,
@@ -51,7 +47,7 @@ function App() {
           finalUrl: activeTooltip.url,
           domain: new URL(activeTooltip.url).hostname,
           status: 200,
-          riskSignals: [], // Add strings here to test warning styles
+          riskSignals: [], 
           loading: false
         });
       }, 600);
@@ -62,7 +58,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-8">
-      {/* 3. The New Component Usage */}
+      {/* The New Component Usage */}
       <LinkPreviewTooltip
         visible={!!activeTooltip}
         data={previewData}
