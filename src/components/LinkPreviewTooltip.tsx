@@ -1,4 +1,4 @@
-import { Copy, CheckCircle, ShieldAlert, Loader, Globe, ArrowRight } from 'lucide-react';
+import { CheckCircle, ShieldAlert, Loader, Globe, ArrowRight, ExternalLink } from 'lucide-react';
 import { useState } from 'react';
 
 // This interface matches the data coming from background.ts
@@ -20,8 +20,6 @@ interface LinkPreviewTooltipProps {
 }
 
 export default function LinkPreviewTooltip({ visible, data, position }: LinkPreviewTooltipProps) {
-  const [copied, setCopied] = useState(false);
-
   // If not visible or no data yet, don't render anything
   if (!visible || !data) return null;
 
@@ -32,6 +30,12 @@ export default function LinkPreviewTooltip({ visible, data, position }: LinkPrev
   const hasSpaceBelow = position.y + TOOLTIP_HEIGHT < viewportHeight;
   const topPosition = hasSpaceBelow ? position.y + 24 : 'auto';
   const bottomPosition = hasSpaceBelow ? 'auto' : (viewportHeight - position.y) + 24;
+
+  const handleOpenReport = () => {
+    // Open the local website (or deployed URL) with the suspicious link as a parameter
+    const reportUrl = `http://localhost:3000/report?url=${encodeURIComponent(data.finalUrl || data.originalUrl)}`;
+    window.open(reportUrl, '_blank');
+  };
 
   return (
     <div
@@ -111,17 +115,16 @@ export default function LinkPreviewTooltip({ visible, data, position }: LinkPrev
 
       </div>
 
-      {/* ACTION FOOTER */}
-      <div onClick={() => {
-        navigator.clipboard.writeText(data.finalUrl || data.originalUrl);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      }} 
-      className="bg-gray-800/50 hover:bg-gray-800 px-4 py-2 border-t border-gray-700 cursor-pointer transition-colors flex items-center justify-center gap-2 text-xs text-gray-400 hover:text-white"
-      >
-        <Copy className="w-3 h-3" />
-        {copied ? 'Copied to clipboard' : 'Click to copy full URL'}
-      </div>
+      {/* ACTION FOOTER: Full Report */}
+      {!data.loading && (
+        <div 
+          onClick={handleOpenReport}
+          className="bg-gray-800/50 hover:bg-gray-800 border-t border-gray-700 px-4 py-2.5 cursor-pointer transition-colors flex items-center justify-center gap-2 text-xs font-semibold text-blue-400 hover:text-blue-300 hover:bg-blue-900/20"
+        >
+          <ExternalLink className="w-3.5 h-3.5" />
+          View Full Security Report
+        </div>
+      )}
     </div>
   );
 }

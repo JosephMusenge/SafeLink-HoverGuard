@@ -48,9 +48,26 @@ const reactRoot = ReactDOM.createRoot(mountPoint);
 let currentHoveredLink: HTMLAnchorElement | null = null;
 let lastMousePos = { x: 0, y: 0 };
 let isTooltipVisible = false;
+let hideTimer: any = null;
+
+const clearHideTimer = () => {
+  if (hideTimer) {
+    clearTimeout(hideTimer);
+    hideTimer = null;
+  }
+};
+
+const startHideTimer = () => {
+  clearHideTimer();
+  // Wait 500ms before closing. If user enters tooltip in this time, we cancel
+  hideTimer = setTimeout(() => {
+    hideTooltip();
+  }, 500); 
+};
 
 const hideTooltip = () => {
-  if (!isTooltipVisible) return;
+  // if (!isTooltipVisible) return;
+  currentHoveredLink = null;
   isTooltipVisible = false;
   reactRoot.render(
      <LinkPreviewTooltip visible={false} data={null} position={{x:0, y:0}} />
@@ -62,6 +79,7 @@ const fetchAndShowTooltip = (link: HTMLAnchorElement, x: number, y: number) => {
   if (isTooltipVisible) return; 
   
   console.log('SafeLink: Analyzing...', link.href);
+  clearHideTimer();
   isTooltipVisible = true;
 
   // Render Loading State Immediately
@@ -80,6 +98,12 @@ const fetchAndShowTooltip = (link: HTMLAnchorElement, x: number, y: number) => {
       position={{ x, y }} 
     />
   );
+
+  // Check if the extension context is still valid before sending
+  if (!chrome.runtime?.id) {
+    console.log('SafeLink: Extension was reloaded. Stopping request to avoid crash.');
+    return;
+  }
 
   // Fetch Data
   chrome.runtime.sendMessage(
@@ -105,6 +129,16 @@ const fetchAndShowTooltip = (link: HTMLAnchorElement, x: number, y: number) => {
   );
 };
 
+// if mouse enters the Tooltip itself, cancel the hide timer
+mountPoint.addEventListener('mouseenter', () => {
+  clearHideTimer();
+});
+
+// if mouse leaves the Tooltip, restart the hide timer
+mountPoint.addEventListener('mouseleave', () => {
+  startHideTimer();
+});
+
 // event listeners
 // track mouse position 
 document.addEventListener('mousemove', (e) => {
@@ -114,6 +148,7 @@ document.addEventListener('mousemove', (e) => {
 // Handle Key Presses (The "Peek" Trigger)
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Shift' && currentHoveredLink) {
+    clearHideTimer();
     fetchAndShowTooltip(currentHoveredLink, lastMousePos.x, lastMousePos.y);
   }
 });
@@ -133,6 +168,7 @@ document.addEventListener('mouseover', (e) => {
     // ignore internal links or empty links
     if (link.href.startsWith('#') || link.href.startsWith('javascript')) return;
 
+    clearHideTimer();
     currentHoveredLink = link;
     // immediately show if shift is held down
     if (e.shiftKey) {
@@ -150,6 +186,7 @@ document.addEventListener('mouseout', (e) => {
       return;
     }
 
-    currentHoveredLink = null;
-    hideTooltip();
+    if (link === currentHoveredLink) {
+      startHideTimer();
+    }
 });
