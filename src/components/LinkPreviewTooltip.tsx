@@ -1,4 +1,4 @@
-import { Copy, CheckCircle, ShieldAlert, Loader, Globe, ArrowRight, ExternalLink } from 'lucide-react';
+import { CheckCircle, ShieldAlert, Loader, Globe, ArrowRight, ExternalLink } from 'lucide-react';
 import { useState } from 'react';
 
 // This interface matches the data coming from background.ts
@@ -20,8 +20,6 @@ interface LinkPreviewTooltipProps {
 }
 
 export default function LinkPreviewTooltip({ visible, data, position }: LinkPreviewTooltipProps) {
-  const [copied, setCopied] = useState(false);
-
   // If not visible or no data yet, don't render anything
   if (!visible || !data) return null;
 
