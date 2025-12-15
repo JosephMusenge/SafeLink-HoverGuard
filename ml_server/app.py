@@ -3,6 +3,7 @@ from flask_cors import CORS
 import joblib
 from features import extract_features
 import numpy as np
+import os
 
 app = Flask(__name__)
 
@@ -37,5 +38,8 @@ def predict():
     })
 
 if __name__ == '__main__':
-    print("ML Server running on http://localhost:5001")
-    app.run(port=5001, debug=True)
+    port = int(os.environ.get('PORT', 5001))
+    print(f" ML Server running on port {port}")
+    app.run(host='0.0.0.0', port=port)
+    # print("ML Server running on http://localhost:5001")
+    # app.run(port=5001, debug=True)
