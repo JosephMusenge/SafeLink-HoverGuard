@@ -10,7 +10,8 @@ app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}}) 
 
 # Load the trained model
-model = joblib.load('phishing_model.pkl')
+model_path = os.path.join(os.path.dirname(__file__), 'phishing_model.pkl')
+model = joblib.load(model_path)
 
 @app.route('/predict', methods=['POST'])
 def predict():
