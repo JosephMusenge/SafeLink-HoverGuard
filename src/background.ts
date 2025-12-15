@@ -50,24 +50,46 @@ function isSuspiciousRedirect(original: string, final: string): boolean {
     return false; 
 
   } catch (e) {
-    return true; // If we can't parse URLs, assume suspicious
+    return true;
   }
 }
 
+// helper func to unwrap microsoft safeLinks to analyze real destination
+function unwrapMicrosoftSafeLink(url: string): string {
+  try {
+    const urlObj = new URL(url);
+    // check for common SafeLink domains
+    if (urlObj.hostname.includes('safelinks.protection.outlook.com') || 
+        urlObj.hostname.includes('safelinks.protection.office365.com')) {
+      
+      const realUrl = urlObj.searchParams.get('url');
+      if (realUrl) {
+        console.log('SafeLink Detected! Unwrapped to:', realUrl);
+        return realUrl; 
+      }
+    }
+  } catch (e) {
+    // if parsing fails, just analyze the original
+  }
+  return url;
+}
+
 async function handleLinkCheck(url: string) {
+  const targetUrl = unwrapMicrosoftSafeLink(url);
   // kill switch timeout
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 4000);
 
   try {
-    let finalUrl = url;
+    const domain = new URL(targetUrl).hostname;
+    let finalUrl = targetUrl;
     let status = 0;
-    let isHttps = url.startsWith('https://');
+    let isHttps = targetUrl.startsWith('https://');
     let riskSignals: string[] = [];
     let networkFailed = false;
 
     try {
-        const response = await fetch(url, { method: 'HEAD', redirect: 'follow', signal: controller.signal });
+        const response = await fetch(targetUrl, { method: 'HEAD', redirect: 'follow', signal: controller.signal });
         clearTimeout(timeoutId);
 
         finalUrl = response.url;
@@ -89,7 +111,7 @@ async function handleLinkCheck(url: string) {
     // run security checks even if network failed
     if (!networkFailed && !isHttps) riskSignals.push('Not Secure (HTTP only)');
 
-    if (!networkFailed && finalUrl !== url && isSuspiciousRedirect(url, finalUrl)) {
+    if (!networkFailed && finalUrl !== targetUrl && isSuspiciousRedirect(targetUrl, finalUrl)) {
       riskSignals.push('Redirected from original link');
     }
 
