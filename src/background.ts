@@ -1,4 +1,6 @@
 const API_KEY = process.env.GOOGLE_SAFE_BROWSING_API_KEY || '';
+const CACHE_DURATION_MS = 15 * 60 * 1000; 
+const scanCache = new Map<string, { result: any, timestamp: number }>();
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === 'CHECK_LINK') {
@@ -107,6 +109,19 @@ async function handleLinkCheck(url: string) {
     };
   }
 
+  // check if we scanned this exact URL recently
+  const cached = scanCache.get(targetUrl);
+  if (cached) {
+    const isFresh = (Date.now() - cached.timestamp) < CACHE_DURATION_MS;
+    if (isFresh) {
+      console.log('Serving from Cache:', targetUrl);
+      return { ...cached.result, loading: false }; // Return cached data instantly
+    } else {
+      // Cache expired, delete it
+      scanCache.delete(targetUrl);
+    }
+  }
+
   try {
     const domain = new URL(targetUrl).hostname;
     let finalUrl = targetUrl;
@@ -156,7 +171,7 @@ async function handleLinkCheck(url: string) {
     const isSafe = await checkSafeBrowsing(finalUrl);
     if (!isSafe) riskSignals.push('Flagged by Google Safe Browsing');
 
-    return {
+    const finalResult = {
       loading: false,
       safe: riskSignals.length === 0,
       domain: new URL(finalUrl).hostname,
@@ -165,6 +180,12 @@ async function handleLinkCheck(url: string) {
       status: status,
       riskSignals: riskSignals
     };
+    // only cache if it wasn't a network error
+    if (!networkFailed) {
+        scanCache.set(targetUrl, { result: finalResult, timestamp: Date.now() });
+    }
+
+    return finalResult;
 
   } catch (error) {
     return { 

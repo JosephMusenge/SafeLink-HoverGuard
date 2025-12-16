@@ -4,6 +4,8 @@ import joblib
 from features import extract_features
 import numpy as np
 import os
+import csv
+from datetime import datetime
 
 app = Flask(__name__)
 
@@ -37,6 +39,32 @@ def predict():
         'is_phishing': bool(is_phishing),
         'confidence_score': float(phishing_probability * 100)
     })
+
+# New endpoint to receive user feedback
+@app.route('/feedback', methods=['POST'])
+def feedback():
+    data = request.json
+    url = data.get('url', '')
+    user_feedback = data.get('feedback', '') # e.g., 'safe' or 'phishing'
+    
+    if not url:
+        return jsonify({'error': 'No URL provided'}), 400
+
+    # Log to a CSV file for future retraining
+    feedback_file = os.path.join(os.path.dirname(__file__), 'feedback_log.csv')
+    
+    # Check if file exists to write header
+    file_exists = os.path.isfile(feedback_file)
+    
+    with open(feedback_file, mode='a', newline='', encoding='utf-8') as file:
+        writer = csv.writer(file)
+        if not file_exists:
+            writer.writerow(['timestamp', 'url', 'reported_as'])
+        
+        writer.writerow([datetime.now(), url, user_feedback])
+
+    return jsonify({'message': 'Feedback received', 'status': 'success'})
+
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
