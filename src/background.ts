@@ -13,7 +13,7 @@ async function checkLocalML(url: string) {
   try {
     console.log("Attempting to contact Python Server...");
     // send the URL to our flask server
-    const response = await fetch('http://localhost:5001/predict', {
+    const response = await fetch('https://safelink-hoverguard.onrender.com/predict', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url: url })
@@ -25,6 +25,20 @@ async function checkLocalML(url: string) {
     // if the Python server isn't running, just silently fail (don't break the extension)
     console.log('ML Server offline');
     return null;
+  }
+}
+
+// helper func to check if domain is whitelisted
+async function isWhitelisted(url: string): Promise<boolean> {
+  try {
+    const domain = new URL(url).hostname;
+    const { whitelist } = await chrome.storage.local.get('whitelist');
+    
+    if (!whitelist || !Array.isArray(whitelist)) return false;
+
+    return whitelist.some(trusted => domain === trusted || domain.endsWith('.' + trusted));
+  } catch (e) {
+    return false;
   }
 }
 
@@ -79,6 +93,19 @@ async function handleLinkCheck(url: string) {
   // kill switch timeout
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+  const isTrusted = await isWhitelisted(targetUrl);
+  if (isTrusted) {
+    return {
+      loading: false,
+      safe: true,
+      domain: new URL(targetUrl).hostname,
+      originalUrl: url,
+      finalUrl: targetUrl,
+      status: 200,
+      riskSignals: []
+    };
+  }
 
   try {
     const domain = new URL(targetUrl).hostname;
