@@ -1,4 +1,6 @@
 const API_KEY = process.env.GOOGLE_SAFE_BROWSING_API_KEY || '';
+const CACHE_DURATION_MS = 15 * 60 * 1000; 
+const scanCache = new Map<string, { result: any, timestamp: number }>();
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === 'CHECK_LINK') {
@@ -13,7 +15,7 @@ async function checkLocalML(url: string) {
   try {
     console.log("Attempting to contact Python Server...");
     // send the URL to our flask server
-    const response = await fetch('http://localhost:5001/predict', {
+    const response = await fetch('https://safelink-hoverguard.onrender.com/predict', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url: url })
@@ -25,6 +27,20 @@ async function checkLocalML(url: string) {
     // if the Python server isn't running, just silently fail (don't break the extension)
     console.log('ML Server offline');
     return null;
+  }
+}
+
+// helper func to check if domain is whitelisted
+async function isWhitelisted(url: string): Promise<boolean> {
+  try {
+    const domain = new URL(url).hostname;
+    const { whitelist } = await chrome.storage.local.get('whitelist');
+    
+    if (!whitelist || !Array.isArray(whitelist)) return false;
+
+    return whitelist.some(trusted => domain === trusted || domain.endsWith('.' + trusted));
+  } catch (e) {
+    return false;
   }
 }
 
@@ -80,6 +96,32 @@ async function handleLinkCheck(url: string) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 4000);
 
+  const isTrusted = await isWhitelisted(targetUrl);
+  if (isTrusted) {
+    return {
+      loading: false,
+      safe: true,
+      domain: new URL(targetUrl).hostname,
+      originalUrl: url,
+      finalUrl: targetUrl,
+      status: 200,
+      riskSignals: []
+    };
+  }
+
+  // check if we scanned this exact URL recently
+  const cached = scanCache.get(targetUrl);
+  if (cached) {
+    const isFresh = (Date.now() - cached.timestamp) < CACHE_DURATION_MS;
+    if (isFresh) {
+      console.log('Serving from Cache:', targetUrl);
+      return { ...cached.result, loading: false }; // Return cached data instantly
+    } else {
+      // Cache expired, delete it
+      scanCache.delete(targetUrl);
+    }
+  }
+
   try {
     const domain = new URL(targetUrl).hostname;
     let finalUrl = targetUrl;
@@ -129,7 +171,7 @@ async function handleLinkCheck(url: string) {
     const isSafe = await checkSafeBrowsing(finalUrl);
     if (!isSafe) riskSignals.push('Flagged by Google Safe Browsing');
 
-    return {
+    const finalResult = {
       loading: false,
       safe: riskSignals.length === 0,
       domain: new URL(finalUrl).hostname,
@@ -138,6 +180,12 @@ async function handleLinkCheck(url: string) {
       status: status,
       riskSignals: riskSignals
     };
+    // only cache if it wasn't a network error
+    if (!networkFailed) {
+        scanCache.set(targetUrl, { result: finalResult, timestamp: Date.now() });
+    }
+
+    return finalResult;
 
   } catch (error) {
     return { 
