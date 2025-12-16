@@ -21,6 +21,7 @@ export default function ReportPage() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [feedbackSent, setFeedbackSent] = useState(false);
 
   useEffect(() => {
     if (!urlToAnalyze) return;
@@ -49,6 +50,19 @@ export default function ReportPage() {
 
     analyzeUrl();
   }, [urlToAnalyze]);
+
+  const handleFeedback = async (type: 'safe' | 'phishing') => {
+    try {
+      await fetch('https://safelink-hoverguard.onrender.com/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: urlToAnalyze, feedback: type })
+      });
+      setFeedbackSent(true);
+    } catch (e) {
+      console.error("Feedback failed", e);
+    }
+  };
 
   // RENDER STATES
   if (!urlToAnalyze) {
@@ -204,6 +218,32 @@ export default function ReportPage() {
                                 </div>
                             </div>
                         </div>
+
+                        {/* Feedback Loop - Only show if flagged as risky but user thinks it's safe */}
+                        {!isSafe && !feedbackSent && (
+                          <div className="mt-6 pt-6 border-t border-gray-700">
+                            <p className="text-xs text-gray-500 mb-3">
+                              AI models can make mistakes. If you trust this link, help us improve.
+                            </p>
+                            <button 
+                              onClick={() => handleFeedback('safe')}
+                              className="text-xs flex items-center gap-2 text-gray-400 hover:text-emerald-400 transition-colors"
+                            >
+                              <div className="w-4 h-4 border border-gray-600 rounded flex items-center justify-center hover:border-emerald-500">
+                                <CheckCircle className="w-3 h-3" />
+                              </div>
+                              Report as False Positive (Safe)
+                            </button>
+                          </div>
+                        )}
+
+                        {feedbackSent && (
+                          <div className="mt-6 pt-6 border-t border-gray-700">
+                              <p className="text-xs text-emerald-400 flex items-center gap-2">
+                                <CheckCircle className="w-3 h-3" /> Thank you! This report has been logged for review.
+                              </p>
+                          </div>
+                        )}
                     </div>
                 </div>
 
