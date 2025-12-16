@@ -30,7 +30,7 @@ export default function ReportPage() {
         setLoading(true);
         setError(null);
         // Contact Python Backend
-        const response = await fetch('http://localhost:5001/predict', {
+        const response = await fetch('https://safelink-hoverguard.onrender.com/predict', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url: urlToAnalyze }),

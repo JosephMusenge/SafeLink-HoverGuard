@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { 
   Shield, Zap, Lock, Eye, 
   Github, Twitter, Linkedin, 
-  ArrowRight, CheckCircle, ExternalLink, Search 
+  ArrowRight, CheckCircle, Settings, Search 
 } from 'lucide-react';
 
 import LinkPreviewTooltip, { LinkSafetyData } from '../components/LinkPreviewTooltip';
@@ -77,7 +77,12 @@ export default function LandingPage() {
           </div>
 
           <div className="flex items-center gap-4">
-             <a href="https://github.com/your-username/safelink" target="_blank" rel="noreferrer" className="text-gray-400 hover:text-white">
+            {/* Settings Link */}
+            <Link to="/settings" className="text-gray-400 hover:text-white transition-colors">
+                <Settings className="w-5 h-5" />
+             </Link>
+
+             <a href="https://github.com/JosephMusenge/SafeLink-HoverGuard" target="_blank" rel="noreferrer" className="text-gray-400 hover:text-white">
                 <Github className="w-5 h-5" />
              </a>
              <button className="bg-white text-gray-900 hover:bg-gray-200 px-4 py-2 rounded-full text-sm font-bold transition-colors">
@@ -125,12 +130,16 @@ export default function LandingPage() {
             </div>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <button className="h-12 px-8 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-lg transition-all shadow-[0_0_20px_-5px_rgba(37,99,235,0.5)] flex items-center gap-2">
-                    Add to Chrome <ArrowRight className="w-5 h-5" />
-                </button>
-                <button className="h-12 px-8 rounded-full bg-gray-800 hover:bg-gray-700 text-white font-bold text-lg border border-gray-700 transition-all">
-                    View on GitHub
-                </button>
+                <a href="https://chrome.google.com/webstore/detail/your-extension-id" target="_blank" rel="noopener noreferrer">
+                    <button className="h-12 px-8 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-lg transition-all shadow-[0_0_20px_-5px_rgba(37,99,235,0.5)] flex items-center gap-2">
+                        Add to Chrome <ArrowRight className="w-5 h-5" />
+                    </button>
+                </a>
+                <a href="https://github.com/JosephMusenge/SafeLink-HoverGuard" target="_blank" rel="noopener noreferrer">
+                    <button className="h-12 px-8 rounded-full bg-gray-800 hover:bg-gray-700 text-white font-bold text-lg border border-gray-700 transition-all">
+                        View on GitHub
+                    </button>
+                </a>
             </div>
         </div>
       </header>
@@ -203,7 +212,7 @@ export default function LandingPage() {
                     {
                         icon: <Zap className="w-6 h-6 text-yellow-400" />,
                         title: "AI Analysis",
-                        desc: "Our local Random Forest model analyzes URL text patterns (entropy, length, chars) to detect 0-day phishing."
+                        desc: "Our local model analyzes URL text patterns (entropy, length, chars) to detect 0-day phishing."
                     },
                     {
                         icon: <Shield className="w-6 h-6 text-emerald-400" />,
